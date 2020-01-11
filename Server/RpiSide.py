@@ -522,7 +522,7 @@ count = 0
 
 
 if sys.platform == "linux" or sys.platform == "linux2":
-    soubory = os.listdir("/home/pi/Desktop/samples/")
+    soubory = os.listdir("./samples2/spatny")
 else:
     cesta = "samples2//spatny"
     soubory = os.listdir(cesta)
@@ -535,7 +535,7 @@ while True:
         # print("Incoming message, type:", type(LAST_MESSAGE).__name__)
         if LAST_MESSAGE == comCommands["CroppedIMG_request"]:
             print("incoming request for image, time: ", time())
-            image = cv2.imread(f"samples2//spatny//{soubory[count]}")
+            image = cv2.imread(f"samples2/spatny/{soubory[count]}")
             SEND(image)
             print("image sent: ", time())
         if type(LAST_MESSAGE).__name__ == "dict":

@@ -1,6 +1,7 @@
 from time import sleep, time
-from Client import GUI, sock_comm
 from PIL import Image, ImageTk
+import GUI
+import sock_comm
 import configRW
 
 configfile = "connections.ini"
@@ -35,7 +36,7 @@ if ConnectSelector.quitFlag:
     exit()
 
 AllconfigData["IP"] = ConnectSelector.rpidict
-AllconfigData["MAIN_CONFIG"]["last_state"] = ConnectSelector.laststate
+AllconfigData["MAIN_CONFIG"]["last_state"] = ConnectSelector.laststate.lower()
 configRW.write_config(AllconfigData, configfile)
 
 ip, port = ConnectSelector.IP_PORT
