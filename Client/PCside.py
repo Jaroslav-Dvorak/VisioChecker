@@ -66,22 +66,23 @@ while NEW_MESSAGE is None:
     NEW_MESSAGE = GET()
 
 AllConfigData, Visio_core, comCommands = NEW_MESSAGE
-# exit()
 Funcs = Visio_core()
 CurrConfigData = AllConfigData[AllConfigData["MAIN_CONFIG"]["last_state"]]
 
 requestIMGmsg = comCommands["CroppedIMG_request"]
 SaveCorfim = comCommands["Save_corfim"]
 
-# print("AllConfigData:", AllConfigData)
-# print("VisioCore:", VisioCore)
-# print("Funcs:", Funcs)
-# print("CurrConfigData:", CurrConfigData)
-
 window = GUI.Vizualizace(geometry='1920x920', title="Visio")
 
 ActComm, StartComTime = SEND(requestIMGmsg)
 
+def ratioresize(img, width):
+    high = int(img.shape[0]*width/img.shape[1])
+    img = Image.fromarray(img).resize((width, high))
+    return img
+
+
+Width = 300
 OrigIMG = None
 Start = True
 while True:
@@ -105,12 +106,14 @@ while True:
         if NewImages is not None:
             Images += NewImages
         if Start or window.refreshGUI:
-            StartImages = [ImageTk.PhotoImage(image=Image.fromarray(Img).resize((300, 300))) for Img in Images]
-            window.startGUI(images=StartImages, curr_config_data=CurrConfigData, functions=Funcs)
+
+            StartImages = [ImageTk.PhotoImage(image=ratioresize(Img, width=Width)) for Img in Images]
+            print(ratioresize(Images[0], 300))
+            window.startGUI(images=StartImages, all_config_data=AllConfigData, functions=Funcs)
             Start = False
         else:
             if not window.refreshGUI:
-                ConvImages = [ImageTk.PhotoImage(image=Image.fromarray(Img).resize((300, 300))) for Img in Images]
+                ConvImages = [ImageTk.PhotoImage(image=ratioresize(Img, width=Width)) for Img in Images]
                 try:
                     window.pictures = ConvImages
                 except Exception as e:

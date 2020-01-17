@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
 from time import sleep, time
 import sys
 import os
-import cv2
 import sock_comm
 import configRW
+
+import PiCamCapture
 
 """func selector"""
 
@@ -13,6 +15,11 @@ from time import time
 import numpy as np
 import cv2
 from math import sin, cos, pi
+from itertools import count
+import os
+
+BadPath = "bad/"
+counter = count(len(os.listdir(BadPath)))
 
 
 def visio_core(input_image=None, parameters=None, order=None):
@@ -391,8 +398,8 @@ def visio_core(input_image=None, parameters=None, order=None):
         lineType = 4
 
         if blacks is None or len(blacks)==0:
-            text = "!O"
-            fontColor = (255, 255, 0)
+            text = "OK"
+            fontColor = (0, 255, 0)
             bottomLeftCornerOfText = (0, 60)
             res_pict = cv2.putText(img, text, bottomLeftCornerOfText, font, fontScale, fontColor, lineType)
             return res_pict
@@ -407,7 +414,7 @@ def visio_core(input_image=None, parameters=None, order=None):
             text = f"{ev_thresh}>{nejvice}"
             fontColor = (255, 0, 0)
             bottomLeftCornerOfText = (0, 60)
-
+            cv2.imwrite(f"{BadPath}spatny{next(counter)}.jpg", input_image)
         res_pict = cv2.putText(img, text, bottomLeftCornerOfText, font, fontScale, fontColor, lineType)
         return res_pict
 
@@ -465,20 +472,32 @@ lastState = AllconfigData["MAIN_CONFIG"]["last_state"]
 configData = AllconfigData[lastState]
 
 Write = False
-if "order" not in configData:
-    print("No key named order --> added order key into configdata.")
-    configData["order"] = []
-    Write = True
+requiredVars = {
+                "order": [],
+                "capture_delay": 0,
+                "exposition": 10000,
+                "resolution_w": 1024,
+                "resolution_h": 768,
+                "framerate": 40,
+                "x_crop": 0,
+                "y_crop": 0,
+                "w_crop": 1,
+                "h_crop": 1
+                }
 
-if "capture_delay" not in configData:
-    print("No key named delay --> added capture_delay key into configdata")
-    configData["capture_delay"] = 0
-    Write = True
 
-if "exposition" not in configData:
-    print("No key named exposition --> added exposition key into configdata")
-    configData["exposition"] = 0
-    Write = True
+def create_config_keys(key, def_val):
+    if key not in configData:
+        print(f'No key named "{key}" --> added key into configdata.')
+        configData[key] = def_val
+        return True
+    else:
+        return False
+
+
+for key, val in requiredVars.items():
+    if create_config_keys(key, val):
+        Write = True
 
 funcs = visio_core()
 
@@ -503,6 +522,9 @@ comCommands = {"CroppedIMG_request": "?", "Save_corfim": "OK"}
 
 WelcomeMessage = AllconfigData, visio_core, comCommands
 SVR = sock_comm.Server(2020, ip="", welcome=WelcomeMessage)
+
+PiCamCapture.Visio_core = visio_core
+
 # SVR.statusLevel = 2
 
 def SEND(obj):
@@ -518,14 +540,26 @@ def GET():
         return new_msg
 
 
-count = 0
+def camset():
+    PiCamCapture.camera.shutter_speed = AllconfigData["_DEFAULT"]["exposition"]
+    PiCamCapture.captDelay = AllconfigData[lastState]["capture_delay"] / 1000
+    PiCamCapture.camera.resolution = (AllconfigData[lastState]["resolution_w"],
+                                      AllconfigData[lastState]["resolution_h"])
+    PiCamCapture.camera.framerate = AllconfigData[lastState]["framerate"]
+    PiCamCapture.x = AllconfigData[lastState]["x_crop"]
+    PiCamCapture.y = AllconfigData[lastState]["y_crop"]
+    PiCamCapture.w = AllconfigData[lastState]["w_crop"]
+    PiCamCapture.h = AllconfigData[lastState]["h_crop"]
+
+    PiCamCapture.CurrConfigData = AllconfigData[lastState]
 
 
-if sys.platform == "linux" or sys.platform == "linux2":
-    soubory = os.listdir("./samples2/spatny")
-else:
-    cesta = "samples2//spatny"
-    soubory = os.listdir(cesta)
+camset()
+
+Image = PiCamCapture.img
+
+while Image is None:
+    sleep(1)
 
 LAST_MESSAGE = None
 while True:
@@ -534,16 +568,13 @@ while True:
     if LAST_MESSAGE is not None:
         # print("Incoming message, type:", type(LAST_MESSAGE).__name__)
         if LAST_MESSAGE == comCommands["CroppedIMG_request"]:
-            print("incoming request for image, time: ", time())
-            image = cv2.imread(f"samples2/spatny/{soubory[count]}")
-            SEND(image)
-            print("image sent: ", time())
+            # print("incoming request for image, time: ", time())
+            Image = PiCamCapture.img
+            SEND(Image)
+            # print("image sent: ", time())
         if type(LAST_MESSAGE).__name__ == "dict":
-            print("incoming configuration, time: ", time())
+            # print("incoming configuration, time: ", time())
             AllconfigData.update({lastState: LAST_MESSAGE})
             configRW.write_config(AllconfigData, configfile)
             SEND(comCommands["Save_corfim"])
-
-        count += 1
-        if count > 5:
-            count = 0
+            camset()

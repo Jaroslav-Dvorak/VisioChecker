@@ -149,9 +149,14 @@ class Vizualizace(threading.Thread):
         self.quitFlag = False
         self.start()
 
-    def startGUI(self, images, curr_config_data, functions):
+    def startGUI(self, images, all_config_data, functions):
 
         self.pictures = images
+
+        curr_preset = all_config_data["MAIN_CONFIG"]["last_state"]
+        curr_config_data = all_config_data[curr_preset]
+        self.order = curr_config_data["order"]
+        presets = [k for k in all_config_data if k != "MAIN_CONFIG"]
 
         self.images = []
         self.scales = []
@@ -181,6 +186,13 @@ class Vizualizace(threading.Thread):
         def buttoncallback():
             self.saveCommand = True
 
+        def entrycallback(var, val, _):
+            try:
+                val = int(val.get())
+            except:
+                return
+            self.ScaleValues[var] = val
+
         self.TopFrame = Frame(self.root, width=10, height=10)
         self.TopFrame.grid(row=0, column=0, sticky=W, pady=20)
         self.MiddleFrame = Frame(self.root, width=10, height=10)
@@ -192,8 +204,6 @@ class Vizualizace(threading.Thread):
         self.label1.grid(row=0, column=0)
         self.images.append(Label(self.TopFrame, image=self.pictures[0]))
         self.images[0].grid(row=1, column=0)
-
-        self.order = curr_config_data["order"]
 
         listOfFunctions = list(functions)
 
@@ -241,7 +251,7 @@ class Vizualizace(threading.Thread):
 
         self.expoScale = Scale(self.BottomFrame,
                                value=curr_config_data["exposition"],
-                               orient=HORIZONTAL, from_=0, to=1020, length=300,
+                               orient=HORIZONTAL, from_=0, to=10000, length=300,
                                command=partial(scalecallback, "exposition"))
         self.expoScale.grid(row=0, column=0)
         self.expoLabel = Label(self.BottomFrame, text="Exposition")
@@ -249,14 +259,71 @@ class Vizualizace(threading.Thread):
 
         self.CaptDelayScale = Scale(self.BottomFrame,
                                     value=curr_config_data["capture_delay"],
-                                    orient=HORIZONTAL, from_=0, to=1020, length=300,
+                                    orient=HORIZONTAL, from_=0, to=500, length=300,
                                     command=partial(scalecallback, "capture_delay"))
         self.CaptDelayScale.grid(row=0, column=1, padx=10)
         self.CaptDelayLabel = Label(self.BottomFrame, text="capture_delay")
         self.CaptDelayLabel.grid(row=1, column=1)
 
+        self.ResHEntry = Entry(self.BottomFrame, width=4)
+        self.ResHEntry.grid(row=0, column=2)
+        self.ResHEntry.insert(0, curr_config_data["resolution_h"])
+        self.ResHEntry.bind('<Key-Return>', partial(entrycallback, "resolution_h", self.ResHEntry))
+        self.ResLabel = Label(self.BottomFrame, text="rozlišení")
+        self.ResLabel.grid(row=1, column=2)
+
+        self.ResXLabel = Label(self.BottomFrame, text="X  ")
+        self.ResXLabel.grid(row=0, column=3, sticky="E")
+
+        self.ResWEntry = Entry(self.BottomFrame, width=4)
+        self.ResWEntry.insert(0, curr_config_data["resolution_w"])
+        self.ResWEntry.bind('<Key-Return>', partial(entrycallback, "resolution_w", self.ResWEntry))
+        self.ResWEntry.grid(row=0, column=4)
+
+        self.FPSEntry = Entry(self.BottomFrame, width=4)
+        self.FPSEntry.grid(row=0, column=5)
+        self.FPSEntry.insert(0, curr_config_data["framerate"])
+        self.FPSEntry.bind('<Key-Return>', partial(entrycallback, "framerate", self.FPSEntry))
+        self.FPSLabel = Label(self.BottomFrame, text="framerate")
+        self.FPSLabel.grid(row=1, column=5)
+
+        self.x_cropLabel = Label(self.BottomFrame, text="     ⟼", font="Arial 24")
+        self.x_cropLabel.grid(row=0, column=6)
+        self.x_cropEntry = Entry(self.BottomFrame, width=4)
+        self.x_cropEntry.grid(row=0, column=7)
+        self.x_cropEntry.insert(0, curr_config_data["x_crop"])
+        self.x_cropEntry.bind('<Key-Return>', partial(entrycallback, "x_crop", self.x_cropEntry))
+
+        self.y_cropLabel = Label(self.BottomFrame, text="↧", font="Arial 24")
+        self.y_cropLabel.grid(row=1, column=6)
+        self.y_cropEntry = Entry(self.BottomFrame, width=4)
+        self.y_cropEntry.grid(row=1, column=7)
+        self.y_cropEntry.insert(0, curr_config_data["y_crop"])
+        self.y_cropEntry.bind('<Key-Return>', partial(entrycallback, "y_crop", self.y_cropEntry))
+
+        self.w_cropLabel = Label(self.BottomFrame, text="⟷", font="Arial 24")
+        self.w_cropLabel.grid(row=0, column=8)
+        self.w_cropEntry = Entry(self.BottomFrame, width=4)
+        self.w_cropEntry.grid(row=0, column=9)
+        self.w_cropEntry.insert(0, curr_config_data["w_crop"])
+        self.w_cropEntry.bind('<Key-Return>', partial(entrycallback, "w_crop", self.w_cropEntry))
+
+        self.h_cropLabel = Label(self.BottomFrame, text="↨", font="Arial 24")
+        self.h_cropLabel.grid(row=1, column=8)
+        self.h_cropEntry = Entry(self.BottomFrame, width=4)
+        self.h_cropEntry.grid(row=1, column=9)
+        self.h_cropEntry.insert(0, curr_config_data["h_crop"])
+        self.h_cropEntry.bind('<Key-Return>', partial(entrycallback, "h_crop", self.h_cropEntry))
+
+        self.presetsLab = Label(self.BottomFrame, text="předvolby")#, font="Arial 24")
+        self.presetsLab.grid(row=1, column=10)
+        self.presetCombo = Combobox(self.BottomFrame, values=presets, state="readonly")
+        # self.presetCombo.bind("<<ComboboxSelected>>", partial(combocallback, extra))
+        self.presetCombo.current(presets.index(curr_preset))
+        self.presetCombo.grid(row=0, column=10)
+
         self.SaveButton = Button(self.BottomFrame, text="Save", command=buttoncallback)
-        self.SaveButton.grid(row=0, column=2)
+        self.SaveButton.grid(row=0, column=11)
 
         if not self.refreshIMG:
             self.refreshImages()
