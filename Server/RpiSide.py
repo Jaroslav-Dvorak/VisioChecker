@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 from time import sleep, time
 import sys
-import os
 import sock_comm
 import configRW
 
-import PiCamCapture
 
 """func selector"""
 
@@ -19,7 +17,14 @@ from itertools import count
 import os
 
 BadPath = "bad/"
-counter = count(len(os.listdir(BadPath)))
+SamplesPath = "samples/"
+try:
+    badfiles = os.listdir(BadPath)
+except FileNotFoundError:
+    os.mkdir(BadPath)
+    counter = count(0)
+else:
+    counter = count(len(badfiles))
 
 
 def visio_core(input_image=None, parameters=None, order=None):
@@ -95,6 +100,14 @@ def visio_core(input_image=None, parameters=None, order=None):
             return ars[1:]
         img = cp(img)
         return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    def negative(img=None):
+        ars, _, _, vals = inspect.getargvalues(inspect.currentframe())
+        vals = [vals[ar] for ar in ars]
+        if any(x is None for x in vals):
+            return ars[1:]
+        img = cp(img)
+        return cv2.bitwise_not(img)
 
     def median(img=None, med_val=None):
         ars, _, _, vals = inspect.getargvalues(inspect.currentframe())
@@ -283,6 +296,54 @@ def visio_core(input_image=None, parameters=None, order=None):
         img = cv2.Canny(img, val1, val2)
         return img
 
+    def floodfill_TR(img=None):
+        ars, _, _, vals = inspect.getargvalues(inspect.currentframe())
+        vals = [vals[ar] for ar in ars]
+        if any(x is None for x in vals):
+            return ars[1:]
+
+        img = cp(img)
+        floodfill_color = 255, 255, 255
+        seed_point = img.shape[1] - 1, 0
+        cv2.floodFill(img, None, seed_point, floodfill_color)
+        return img
+
+    def floodfill_BR(img=None):
+        ars, _, _, vals = inspect.getargvalues(inspect.currentframe())
+        vals = [vals[ar] for ar in ars]
+        if any(x is None for x in vals):
+            return ars[1:]
+
+        img = cp(img)
+        floodfill_color = 255, 255, 255
+        seed_point = img.shape[1] - 1, img.shape[0] - 1
+        cv2.floodFill(img, None, seed_point, floodfill_color)
+        return img
+
+    def floodfill_TL(img=None):
+        ars, _, _, vals = inspect.getargvalues(inspect.currentframe())
+        vals = [vals[ar] for ar in ars]
+        if any(x is None for x in vals):
+            return ars[1:]
+
+        img = cp(img)
+        floodfill_color = 255, 255, 255
+        seed_point = 0, 0
+        cv2.floodFill(img, None, seed_point, floodfill_color)
+        return img
+
+    def floodfill_BL(img=None):
+        ars, _, _, vals = inspect.getargvalues(inspect.currentframe())
+        vals = [vals[ar] for ar in ars]
+        if any(x is None for x in vals):
+            return ars[1:]
+
+        img = cp(img)
+        floodfill_color = 255, 255, 255
+        seed_point = 0, img.shape[0]-1
+        cv2.floodFill(img, None, seed_point, floodfill_color)
+        return img
+
     def findcircle(img=None, crcl_thrsh1=None, crcl_thrsh2=None, min_rad=None, max_rad=None):
         ars, _, _, vals = inspect.getargvalues(inspect.currentframe())
         vals = [vals[ar] for ar in ars]
@@ -332,8 +393,9 @@ def visio_core(input_image=None, parameters=None, order=None):
 
         try:
             firstcircle = Commons["circle"]
-        except IndexError:
-            return
+        except KeyError:
+            Commons["blacks"] = None
+            return img
 
         try:
             center = (firstcircle[0], firstcircle[1])
@@ -391,13 +453,19 @@ def visio_core(input_image=None, parameters=None, order=None):
 
         h, w = img.shape[:2]
         img = np.zeros((h, w, 3), np.uint8)
-        blacks = Commons["blacks"]
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         fontScale = 1
         lineType = 4
+        try:
+            blacks = Commons["blacks"]
+        except KeyError:
+            text = "?"
+            fontColor = (255, 255, 0)
+            bottomLeftCornerOfText = (0, 60)
+            return cv2.putText(img, text, bottomLeftCornerOfText, font, fontScale, fontColor, lineType)
 
-        if blacks is None or len(blacks)==0:
+        if blacks is None or len(blacks) == 0:
             text = "OK"
             fontColor = (0, 255, 0)
             bottomLeftCornerOfText = (0, 60)
@@ -414,7 +482,7 @@ def visio_core(input_image=None, parameters=None, order=None):
             text = f"{ev_thresh}>{nejvice}"
             fontColor = (255, 0, 0)
             bottomLeftCornerOfText = (0, 60)
-            cv2.imwrite(f"{BadPath}spatny{next(counter)}.jpg", input_image)
+            cv2.imwrite(f"{BadPath}badOne_{next(counter)}.jpg", input_image)
         res_pict = cv2.putText(img, text, bottomLeftCornerOfText, font, fontScale, fontColor, lineType)
         return res_pict
 
@@ -458,6 +526,7 @@ def new_config_file():
     configRW.write_config({"_DEFAULT": {},
                            "MAIN_CONFIG": {"last_state": "_DEFAULT"}}, configfile)
 
+
 if not os.path.isfile(configfile):
     print("Konfigurační soubor neexistuje, vytvořen nový.")
     new_config_file()
@@ -474,6 +543,7 @@ configData = AllconfigData[lastState]
 Write = False
 requiredVars = {
                 "order": [],
+                "triggerpin": 12,
                 "capture_delay": 0,
                 "exposition": 10000,
                 "resolution_w": 1024,
@@ -509,13 +579,7 @@ for func in funcs:
 
 if Write:
     AllconfigData.update({lastState: configData})
-    print(AllconfigData)
     configRW.write_config(AllconfigData, configfile)
-
-# print("data:", configData)
-# print("Dostupné funkce:", funcs)
-
-# print(g(input_image=IMG_ORIG, parameters=Params, order=poradi))
 
 comCommands = {"CroppedIMG_request": "?", "Save_corfim": "OK"}
 
@@ -523,12 +587,10 @@ comCommands = {"CroppedIMG_request": "?", "Save_corfim": "OK"}
 WelcomeMessage = AllconfigData, visio_core, comCommands
 SVR = sock_comm.Server(2020, ip="", welcome=WelcomeMessage)
 
-PiCamCapture.Visio_core = visio_core
-
-# SVR.statusLevel = 2
 
 def SEND(obj):
     return SVR.send_message(obj)
+
 
 def GET():
     last_msg = SVR.LAST_MESSAGE
@@ -541,7 +603,8 @@ def GET():
 
 
 def camset():
-    PiCamCapture.camera.shutter_speed = AllconfigData["_DEFAULT"]["exposition"]
+    PiCamCapture.trigger_detect(AllconfigData[lastState]["triggerpin"])
+    PiCamCapture.camera.shutter_speed = AllconfigData[lastState]["exposition"]
     PiCamCapture.captDelay = AllconfigData[lastState]["capture_delay"] / 1000
     PiCamCapture.camera.resolution = (AllconfigData[lastState]["resolution_w"],
                                       AllconfigData[lastState]["resolution_h"])
@@ -554,9 +617,31 @@ def camset():
     PiCamCapture.CurrConfigData = AllconfigData[lastState]
 
 
-camset()
+Image = None
 
-Image = PiCamCapture.img
+
+def simfromfile():
+    global Image
+    while True:
+        for imfile in os.listdir(SamplesPath):
+            Image = cv2.imread(f"{SamplesPath}{imfile}")
+            visio_core(input_image=Image, parameters=AllconfigData[lastState], order=AllconfigData[lastState]["order"])
+            sleep(2)
+
+
+SIMULACE = False
+if len(sys.argv) > 1 and sys.argv[1] == "sim":
+    SIMULACE = True
+
+if SIMULACE:
+    import threading
+    ri = threading.Thread(target=simfromfile)
+    ri.start()
+else:
+    import PiCamCapture
+    PiCamCapture.Visio_core = visio_core
+    camset()
+    Image = PiCamCapture.img
 
 while Image is None:
     sleep(1)
@@ -569,12 +654,13 @@ while True:
         # print("Incoming message, type:", type(LAST_MESSAGE).__name__)
         if LAST_MESSAGE == comCommands["CroppedIMG_request"]:
             # print("incoming request for image, time: ", time())
-            Image = PiCamCapture.img
+            if not SIMULACE:
+                Image = PiCamCapture.img
             SEND(Image)
-            # print("image sent: ", time())
         if type(LAST_MESSAGE).__name__ == "dict":
             # print("incoming configuration, time: ", time())
             AllconfigData.update({lastState: LAST_MESSAGE})
             configRW.write_config(AllconfigData, configfile)
             SEND(comCommands["Save_corfim"])
-            camset()
+            if not SIMULACE:
+                camset()

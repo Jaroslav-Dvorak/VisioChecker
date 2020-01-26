@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
 from time import sleep, time
-import sys
+from sys import platform
 import os
 import concurrent.futures
 import numpy as np
 # import cv2
 from resettabletimer import ResettableTimer
 from itertools import count
+
 import RPi.GPIO as GPIO
-from picamera.array import PiRGBArray
 from picamera import PiCamera
 
 # GPIO settings
@@ -28,7 +28,8 @@ GPIO.setup(5, GPIO.OUT)
 GPIO.setup(22, GPIO.OUT)
 GPIO.setup(27, GPIO.OUT)
 GPIO.setup(17, GPIO.OUT)
-trigger = 12
+
+triggerPin = 12
 lightPin = 5
 
 # camera settings
@@ -36,7 +37,7 @@ resolution = (800, 208)
 camera = PiCamera()
 camera.resolution = resolution
 #camera.rotation = 180
-camera.iso = 100
+# camera.iso = 100
 camera.shutter_speed = 3000
 camera.exposure_mode = "off"
 #time.sleep(3)
@@ -58,8 +59,8 @@ captDelay = 0.1
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
 
-photo = np.zeros((resolution[1], resolution[0], 3), np.uint8)
-img = photo[y:y+h, x:x+w]
+Firtstphoto = np.zeros((resolution[1], resolution[0], 3), np.uint8)
+img = Firtstphoto[y:y+h, x:x+w]
 
 Visio_core = None
 CurrConfigData = None
@@ -68,12 +69,14 @@ counter = count()
 
 def capture():
 	sleep(0.1)
-	if Visio_core is None or CurrConfigData is None or GPIO.input(trigger) == GPIO.LOW:
+	if Visio_core is None or CurrConfigData is None or GPIO.input(triggerPin) == GPIO.LOW:
 		return
 	sleep(captDelay)
 	start = time()
 	global img
+	photo = np.zeros((camera.resolution.height, camera.resolution.width, 3), np.uint8)
 	camera.capture(photo, format="bgr", use_video_port=True)
+	print(camera.shutter_speed)
 	img = photo[y:y + h, x:x + w]
 	NewImages = Visio_core(input_image=img, parameters=CurrConfigData, order=CurrConfigData["order"])
 
@@ -84,7 +87,7 @@ def capture():
 
 def light_control():
 	sleep(0.05)
-	if GPIO.input(trigger) == GPIO.HIGH:
+	if GPIO.input(triggerPin) == GPIO.HIGH:
 		t.reset()
 		if GPIO.input(lightPin) == GPIO.LOW:
 			GPIO.output(lightPin, True)		#light ON
@@ -95,7 +98,15 @@ def time_filter(pin):
 	executor.submit(capture)
 
 
-GPIO.add_event_detect(trigger, GPIO.RISING, callback=time_filter, bouncetime=10)
+def trigger_detect(newpin):
+	global triggerPin
+	oldpin = triggerPin
+	GPIO.remove_event_detect(oldpin)
+	triggerPin = newpin
+	GPIO.add_event_detect(triggerPin, GPIO.RISING, callback=time_filter, bouncetime=10)
+
+trigger_detect(triggerPin)
+
 
 t = ResettableTimer(lightTime, GPIO.output, [lightPin, False])
 t.start()
