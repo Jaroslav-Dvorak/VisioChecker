@@ -108,7 +108,6 @@ while True:
         if Start or window.refreshGUI:
 
             StartImages = [ImageTk.PhotoImage(image=ratioresize(Img, width=Width)) for Img in Images]
-            print(ratioresize(Images[0], 300))
             window.startGUI(images=StartImages, all_config_data=AllConfigData, functions=Funcs)
             Start = False
         else:

@@ -193,6 +193,13 @@ class Vizualizace(threading.Thread):
                 return
             self.ScaleValues[var] = val
 
+        def pinselectorcallback(var, val, _):
+            try:
+                val = int(val.get())
+            except:
+                return
+            self.ScaleValues[var] = val
+
         self.TopFrame = Frame(self.root, width=10, height=10)
         self.TopFrame.grid(row=0, column=0, sticky=W, pady=20)
         self.MiddleFrame = Frame(self.root, width=10, height=10)
@@ -251,7 +258,7 @@ class Vizualizace(threading.Thread):
 
         self.expoScale = Scale(self.BottomFrame,
                                value=curr_config_data["exposition"],
-                               orient=HORIZONTAL, from_=0, to=10000, length=300,
+                               orient=HORIZONTAL, from_=0, to=150000, length=300,
                                command=partial(scalecallback, "exposition"))
         self.expoScale.grid(row=0, column=0)
         self.expoLabel = Label(self.BottomFrame, text="Exposition")
@@ -315,15 +322,23 @@ class Vizualizace(threading.Thread):
         self.h_cropEntry.insert(0, curr_config_data["h_crop"])
         self.h_cropEntry.bind('<Key-Return>', partial(entrycallback, "h_crop", self.h_cropEntry))
 
-        self.presetsLab = Label(self.BottomFrame, text="předvolby")#, font="Arial 24")
-        self.presetsLab.grid(row=1, column=10)
+        input_pins = [12, 13, 19, 16, 20, 26, 21]
+        self.TrigPinLab = Label(self.BottomFrame, text="TriggerPin")     #, font="Arial 24")
+        self.TrigPinLab.grid(row=1, column=10)
+        self.TrigPinCombo = Combobox(self.BottomFrame, values=input_pins, state="readonly", width=4)
+        self.TrigPinCombo.bind("<<ComboboxSelected>>", partial(pinselectorcallback, "triggerpin", self.TrigPinCombo))
+        self.TrigPinCombo.current(input_pins.index(curr_config_data["triggerpin"]))
+        self.TrigPinCombo.grid(row=0, column=10)
+
+        self.presetsLab = Label(self.BottomFrame, text="předvolby")    #, font="Arial 24")
+        self.presetsLab.grid(row=1, column=11)
         self.presetCombo = Combobox(self.BottomFrame, values=presets, state="readonly")
         # self.presetCombo.bind("<<ComboboxSelected>>", partial(combocallback, extra))
         self.presetCombo.current(presets.index(curr_preset))
-        self.presetCombo.grid(row=0, column=10)
+        self.presetCombo.grid(row=0, column=11)
 
         self.SaveButton = Button(self.BottomFrame, text="Save", command=buttoncallback)
-        self.SaveButton.grid(row=0, column=11)
+        self.SaveButton.grid(row=0, column=12)
 
         if not self.refreshIMG:
             self.refreshImages()
