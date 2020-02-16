@@ -5,3 +5,7 @@
 .idea/modules.xml
 .idea/workspace.xml
 .idea/vcs.xml
+Server/__pycache__/PiCamCapture.cpython-37.pyc
+Client/__pycache__/GUI.cpython-37.pyc
+Server/__pycache__/PiCamCapture.cpython-37.pyc
+*.pyc

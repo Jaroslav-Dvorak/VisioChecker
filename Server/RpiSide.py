@@ -659,7 +659,7 @@ while True:
             SEND(Image)
         if type(LAST_MESSAGE).__name__ == "dict":
             # print("incoming configuration, time: ", time())
-            AllconfigData.update({lastState: LAST_MESSAGE})
+            AllconfigData = LAST_MESSAGE
             configRW.write_config(AllconfigData, configfile)
             SEND(comCommands["Save_corfim"])
             if not SIMULACE:

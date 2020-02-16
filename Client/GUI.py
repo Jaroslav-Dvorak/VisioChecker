@@ -1,12 +1,11 @@
 from tkinter import *
 from tkinter import messagebox
 from tkinter.ttk import *
+from tkinter import Button as classicButton
 import threading
 from functools import partial
 import ipaddress
-
-from time import sleep
-
+from copy import deepcopy
 
 class ConnectSelector:
     def __init__(self, rpidict, last):
@@ -125,10 +124,6 @@ class ConnectSelector:
             return None
 
         return IP, Port
-    #
-    # def combostate(self):
-    #     print(self.combo.get())
-    #     return "localhost"
 
     def callback_exit(self):
         self.root.quit()
@@ -143,7 +138,9 @@ class Vizualizace(threading.Thread):
         self.refreshGUI = False
         self.refreshIMG = False
         self.saveCommand = False
+        self.saved = True
 
+        self.newpreset = None
         self.ScaleValues = {}
 
         self.quitFlag = False
@@ -156,16 +153,27 @@ class Vizualizace(threading.Thread):
         curr_preset = all_config_data["MAIN_CONFIG"]["last_state"]
         curr_config_data = all_config_data[curr_preset]
         self.order = curr_config_data["order"]
-        presets = [k for k in all_config_data if k != "MAIN_CONFIG"]
+        self.presets = [k for k in all_config_data if k != "MAIN_CONFIG"]
+        self.newpreset = None
 
         self.images = []
         self.scales = []
         self.combos = []
         self.labels = []
 
+        def refresh():
+            for items in self.images + self.scales + self.combos + self.labels:
+                items.destroy()
+                self.TopFrame.destroy()
+                self.MiddleFrame.destroy()
+            self.saved = False
+            self.SaveButton.config(bg="red")
+            self.refreshGUI = True
+
+
         def scalecallback(var, val):
-            # print(val, var)
             self.ScaleValues[var] = int(float(val))
+            self.SaveButton.config(bg="red")
 
         def combocallback(which, _):
             var = self.combos[which].get()
@@ -177,11 +185,7 @@ class Vizualizace(threading.Thread):
                 self.order[which] = var
             else:
                 return
-            for items in self.images + self.scales + self.combos + self.labels:
-                items.destroy()
-                self.TopFrame.destroy()
-                self.MiddleFrame.destroy()
-            self.refreshGUI = True
+            refresh()
 
         def buttoncallback():
             self.saveCommand = True
@@ -191,6 +195,8 @@ class Vizualizace(threading.Thread):
                 val = int(val.get())
             except:
                 return
+            self.saved = False
+            self.SaveButton.config(bg="red")
             self.ScaleValues[var] = val
 
         def pinselectorcallback(var, val, _):
@@ -198,6 +204,8 @@ class Vizualizace(threading.Thread):
                 val = int(val.get())
             except:
                 return
+            self.saved = False
+            self.SaveButton.config(bg="red")
             self.ScaleValues[var] = val
 
         self.TopFrame = Frame(self.root, width=10, height=10)
@@ -323,22 +331,69 @@ class Vizualizace(threading.Thread):
         self.h_cropEntry.bind('<Key-Return>', partial(entrycallback, "h_crop", self.h_cropEntry))
 
         input_pins = [12, 13, 19, 16, 20, 26, 21]
-        self.TrigPinLab = Label(self.BottomFrame, text="TriggerPin")     #, font="Arial 24")
+        self.TrigPinLab = Label(self.BottomFrame, text="TriggerPin")
         self.TrigPinLab.grid(row=1, column=10)
         self.TrigPinCombo = Combobox(self.BottomFrame, values=input_pins, state="readonly", width=4)
         self.TrigPinCombo.bind("<<ComboboxSelected>>", partial(pinselectorcallback, "triggerpin", self.TrigPinCombo))
         self.TrigPinCombo.current(input_pins.index(curr_config_data["triggerpin"]))
         self.TrigPinCombo.grid(row=0, column=10)
 
-        self.presetsLab = Label(self.BottomFrame, text="předvolby")    #, font="Arial 24")
+        def presetselectedcallback(_):
+            selected = self.presetCombo.get()
+            self.nameOfpresetEntry.delete(0, "end")
+            if selected != "<new>":
+                self.nameOfpresetEntry.insert(0, selected)
+                all_config_data["MAIN_CONFIG"]["last_state"] = selected
+                self.newpreset = all_config_data
+                refresh()
+
+        def presetwrittencallback(_):
+            selected = self.presetCombo.get()
+            written = self.nameOfpresetEntry.get()
+            if selected == "<new>" and written != "" and written != "<new>" and written != "DEFAULT":
+                self.presets.append(written)
+                all_config_data[written] = deepcopy(all_config_data[all_config_data["MAIN_CONFIG"]["last_state"]])
+            elif selected != "<new>":
+                self.presets = [w.replace(selected, written) for w in self.presets]
+                all_config_data[written] = all_config_data.pop(selected)
+
+            self.presetCombo.configure(values=self.presets + ["<new>"])
+            self.presetCombo.current(self.presets.index(written))
+            all_config_data["MAIN_CONFIG"]["last_state"] = written
+            self.newpreset = all_config_data
+
+        def deletebuttoncallback():
+            selected = self.presetCombo.get()
+            if selected != "<new>" and len(self.presets) > 1:
+                self.presets.remove(selected)
+                self.presetCombo.configure(values=self.presets + ["<new>"])
+                self.presetCombo.current(0)
+                all_config_data.pop(selected)
+                presetselectedcallback(None)
+
+        self.presetsLab = Label(self.BottomFrame, text="předvolby")
         self.presetsLab.grid(row=1, column=11)
-        self.presetCombo = Combobox(self.BottomFrame, values=presets, state="readonly")
-        # self.presetCombo.bind("<<ComboboxSelected>>", partial(combocallback, extra))
-        self.presetCombo.current(presets.index(curr_preset))
+        self.presetCombo = Combobox(self.BottomFrame, values=self.presets + ["<new>"], state="readonly")
+        self.presetCombo.bind("<<ComboboxSelected>>", presetselectedcallback)
+        self.presetCombo.current(self.presets.index(curr_preset))
         self.presetCombo.grid(row=0, column=11)
 
-        self.SaveButton = Button(self.BottomFrame, text="Save", command=buttoncallback)
-        self.SaveButton.grid(row=0, column=12)
+        self.DeleteButton = Button(self.BottomFrame, text="delete", command=deletebuttoncallback)
+        self.DeleteButton.grid(row=2, column=11)
+
+        self.nameOfpresetLabel = Label(self.BottomFrame, text="název_předvolby")
+        self.nameOfpresetLabel.grid(row=1, column=12)
+        self.nameOfpresetEntry = Entry(self.BottomFrame)
+        self.nameOfpresetEntry.grid(row=0, column=12)
+        self.nameOfpresetEntry.insert(0, curr_preset)
+        self.nameOfpresetEntry.bind('<Key-Return>', presetwrittencallback)
+
+        self.SaveButton = classicButton(self.BottomFrame, text="Save", command=buttoncallback, width=20, height=2)
+        if self.saved:
+            self.SaveButton.config(bg="green")
+        else:
+            self.SaveButton.config(bg="red")
+        self.SaveButton.grid(row=0, column=13)
 
         if not self.refreshIMG:
             self.refreshImages()
@@ -346,18 +401,18 @@ class Vizualizace(threading.Thread):
         self.refreshGUI = False
 
     def refreshImages(self):
-
         self.refreshIMG = True
 
         if not self.refreshGUI:
             if not self.refreshGUI:
                 for i, img in enumerate(self.images):
-                    img.image = (self.pictures[i])
-                    img.configure(image=self.pictures[i])
-
+                    try:
+                        img.image = (self.pictures[i])
+                        img.configure(image=self.pictures[i])
+                    except:
+                        pass
         self.root.update_idletasks()
         self.root.after(10, self.refreshImages)
-
 
     def callback_exit(self):
         self.quitFlag = True

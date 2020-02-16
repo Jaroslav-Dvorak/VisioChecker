@@ -6,22 +6,22 @@ import configRW
 
 configfile = "connections.ini"
 
-AllconfigData = configRW.read_config(configfile)
+AllconfigIpData = configRW.read_config(configfile)
 RpiAvaible = {}
-lastState = ""
+lastIpState = ""
 try:
-    lastState = AllconfigData["MAIN_CONFIG"]["last_state"]
-    lastIP = AllconfigData["IP"][lastState]
-    RpiAvaible = AllconfigData["IP"]
+    lastIpState = AllconfigIpData["MAIN_CONFIG"]["last_state"]
+    lastIP = AllconfigIpData["IP"][lastIpState]
+    RpiAvaible = AllconfigIpData["IP"]
 except KeyError:
     try:
         configRW.write_config({"IP": {"localhost": "127.0.0.1:2020"}, "MAIN_CONFIG": {"last_state": "localhost"}},
                               configfile)
         print("Konfigurační soubor neexistuje nebo není ve správném formátu.\n"
               "Vytvořen nový.")
-        AllconfigData = configRW.read_config(configfile)
-        lastState = AllconfigData["MAIN_CONFIG"]["last_state"]
-        RpiAvaible = AllconfigData["IP"]
+        AllconfigIpData = configRW.read_config(configfile)
+        lastIPState = AllconfigIpData["MAIN_CONFIG"]["last_state"]
+        RpiAvaible = AllconfigIpData["IP"]
 
     except Exception as e:
         print("error:", e)
@@ -30,17 +30,16 @@ except Exception as e:
     print("error:", e)
     exit()
 
-ConnectSelector = GUI.ConnectSelector(rpidict=RpiAvaible, last=lastState)
+ConnectSelector = GUI.ConnectSelector(rpidict=RpiAvaible, last=lastIpState)
 
 if ConnectSelector.quitFlag:
     exit()
 
-AllconfigData["IP"] = ConnectSelector.rpidict
-AllconfigData["MAIN_CONFIG"]["last_state"] = ConnectSelector.laststate.lower()
-configRW.write_config(AllconfigData, configfile)
+AllconfigIpData["IP"] = ConnectSelector.rpidict
+AllconfigIpData["MAIN_CONFIG"]["last_state"] = ConnectSelector.laststate.lower()
+configRW.write_config(AllconfigIpData, configfile)
 
 ip, port = ConnectSelector.IP_PORT
-
 
 LAST_MESSAGE = None
 CLI = sock_comm.Client(ip=ip, port=port)
@@ -67,14 +66,13 @@ while NEW_MESSAGE is None:
 
 AllConfigData, Visio_core, comCommands = NEW_MESSAGE
 Funcs = Visio_core()
-CurrConfigData = AllConfigData[AllConfigData["MAIN_CONFIG"]["last_state"]]
+
 
 requestIMGmsg = comCommands["CroppedIMG_request"]
 SaveCorfim = comCommands["Save_corfim"]
 
-window = GUI.Vizualizace(geometry='1920x920', title="Visio")
-
 ActComm, StartComTime = SEND(requestIMGmsg)
+
 
 def ratioresize(img, width):
     high = int(img.shape[0]*width/img.shape[1])
@@ -85,7 +83,11 @@ def ratioresize(img, width):
 Width = 300
 OrigIMG = None
 Start = True
+window = GUI.Vizualizace(geometry='1920x920', title="Visio")
 while True:
+    lastState = AllConfigData["MAIN_CONFIG"]["last_state"]
+    CurrConfigData = AllConfigData[lastState]
+
     NEW_MESSAGE = GET()
     if NEW_MESSAGE is not None:
         # print("Incoming message, type:", type(NEW_MESSAGE).__name__)
@@ -96,6 +98,7 @@ while True:
 
         if type(NEW_MESSAGE).__name__ == "str" and NEW_MESSAGE == SaveCorfim:
             print("config saved, time after request:", time() - StartComTime)
+            window.SaveButton.config(bg="green")
             ActComm = False
 
     if OrigIMG is not None:
@@ -106,7 +109,6 @@ while True:
         if NewImages is not None:
             Images += NewImages
         if Start or window.refreshGUI:
-
             StartImages = [ImageTk.PhotoImage(image=ratioresize(Img, width=Width)) for Img in Images]
             window.startGUI(images=StartImages, all_config_data=AllConfigData, functions=Funcs)
             Start = False
@@ -120,18 +122,34 @@ while True:
                 if len(window.ScaleValues) > 0:
                     CurrConfigData.update(window.ScaleValues)
                     window.ScaleValues = {}
+                if window.newpreset:
+
+                    AllConfigData = window.newpreset
+                    window.newpreset = None
+
+                    # if window.newpreset in AllConfigData:
+                    #     for items in window.images + window.scales + window.combos + window.labels:
+                    #         items.destroy()
+                    #         window.TopFrame.destroy()
+                    #         window.MiddleFrame.destroy()
+                    #     window.saved = False
+                    #     window.SaveButton.config(bg="red")
+                    #     window.refreshGUI = True
+                    # else:
+                    #     AllConfigData[window.newpreset] = AllConfigData[lastState]
+                    #     window.newpreset = None
+                    # AllConfigData["MAIN_CONFIG"]["last_state"] = window.newpreset
+
         if window.quitFlag:
             window.root.quit()
             CLI.S.close()
             break
 
         if window.saveCommand and not ActComm:
-            ActComm, StartComTime = SEND(CurrConfigData)
+            ActComm, StartComTime = SEND(AllConfigData)
             window.saveCommand = False
-            ActComm = True
 
         if not ActComm:
             ActComm, StartComTime = SEND(requestIMGmsg)
-            ActComm = True
 
     sleep(0.1)
